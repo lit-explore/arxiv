@@ -1,0 +1,19 @@
+#
+# lit-explore: arXiv data preparation config
+#
+
+# base output directory
+out_dir: "/data/arxiv"
+
+# number of article batches to create when splitting dataset for parallel processing
+num_chunks: 100
+
+# factors to use to decide whether to exclude an article from analysis
+exclude_articles:
+  missing_abstract: true
+  missing_title: true
+
+# maximum length of tokens to allow in article title/abstract; useful to filter out things like
+# base64-encoded images that appear in some texts
+tokens:
+  max_len: 128
