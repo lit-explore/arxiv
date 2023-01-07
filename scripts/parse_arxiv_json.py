@@ -46,6 +46,11 @@ for line in lines:
     date_created = article['versions'][-1]['created'][5:]
     date_str = datetime.strptime(date_created, "%d %b %Y %H:%M:%S %Z").isoformat()
 
+    # replace underscores with HTML-encoded representations to simplify downstream handling of
+    # n-gram tokens
+    title = title.replace("_", "%5f")
+    abstract = abstract.replace("_", "%5f")
+
     ids.append(article['id'])
     dois.append(article['doi'].lower())
     titles.append(title)
