@@ -14,7 +14,7 @@ with open(snakemake.input[0]) as fp:
 num_articles = len(lines)
 
 # number of articles to include, per output chunk
-articles_per_batch = int(num_articles / snakemake.config['arxiv']['num_chunks'])
+articles_per_batch = int(num_articles / snakemake.config['num_chunks'])
 
 # determine indices of articles to include in chunk
 start_ind = (int(snakemake.wildcards['arxiv_num']) - 1) * articles_per_batch
@@ -51,8 +51,12 @@ for line in lines:
     title = title.replace("_", "%5f")
     abstract = abstract.replace("_", "%5f")
 
+    if article['doi'] is None:
+        dois.append(None)
+    else:
+        dois.append(article['doi'].lower())
+
     ids.append(article['id'])
-    dois.append(article['doi'].lower())
     titles.append(title)
     dates.append(date_str)
 
