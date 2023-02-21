@@ -4,93 +4,66 @@ Generates lemmatized version of a corpus
 import stanza
 import pandas as pd
 
-# pos batch size (move to config)
-POS_BATCH_SIZE=501
+# pos batch size
+POS_BATCH_SIZE = 501
+
+snek = snakemake
 
 # initialize stanza lemmatizer
-nlp = stanza.Pipeline(lang='en', processors='tokenize,pos,lemma', pos_batch_size=POS_BATCH_SIZE)
+nlp = stanza.Pipeline(lang='en', processors='tokenize,pos,lemma', 
+                      pos_batch_size=POS_BATCH_SIZE)
 
 # load corpus
-corpus = pd.read_feather(snakemake.input[0])
+corpus = pd.read_feather(snek.input[0])
 
 corpus.abstract.fillna("", inplace=True)
 corpus.title.fillna("", inplace=True)
 
 # lists to store output row parts
-ids = []
-dois = []
-lemma_titles = []
-lemma_abstracts = []
+ids:list[str] = []
+dois:list[str] = []
+lemma_titles:list[str] = []
+lemma_abstracts:list[str] = []
 
-# iterate over article texts, and apply lemmatizer
-for ind, article in corpus.iterrows():
-    if ind % 100 == 0:
-        print(f"lemmatization: Processing article {ind + 1}...")
+docs:list[str] = []
 
-    # moved upstream..
-    #  if snakemake.config['exclude_articles']['missing_title'] and article.title == "":
-    #      continue
-    #
-    #  if snakemake.config['exclude_articles']['missing_abstract'] and article.abstract == "":
-    #      continue
-
+for _, article in corpus.iterrows():
     ids.append(article.id)
     dois.append(article.doi)
 
-    # process title and abstract together to reduce overhead;
-    # newlines have been previously removed from titles to ensure that each
-    # title contains only a single sentence
+    # collapse title and abstract for faster processing
     text = article.title.lower() + "\n\n" + article.abstract.lower()
 
-    # stanza work-around; fails if text is *exactly* the length of the batch size (default: 3000)
-    padding_counter = 0
+    docs.append(text)
 
-    if len(text) == POS_BATCH_SIZE:
-        text = text + "."
-        padding_counter = 1
+lemma_docs: list[str] = []
 
-    # if both title & abstract are empty, skip lemmatization
-    if text == "\n\n":
-        lemma_titles.append("")
-        lemma_abstracts.append("")
+# lemmatize texts
+out_docs = nlp([stanza.Document([], text=d) for d in docs])
 
-        continue
-
-    # lemmatize title
-    try:
-        doc = nlp(text)
-    except:
-        # work-around: stanza still fails for some texts, even when the length of the
-        # text is not equal to the batch size.
-        doc = nlp(text + ".")
-        padding_counter += 1
-
-    # extract title (first sentence in output)
-    title_words = [word.lemma for word in doc.sentences[0].words if word.lemma is not None]
+# extract lemmatized titles and abstracts
+for doc in out_docs:
+    # extract title
+    title_words:list[str] = [word.lemma for word in doc.sentences[0].words if word.lemma is not None]
     lemma_titles.append(" ".join(title_words))
 
     # extract abstract
-    abstract_words = []
+    abstract_words:list[str] = []
 
     for sentence in doc.sentences[1:]:
         for word in sentence.words:
             if word.lemma is not None:
                 abstract_words.append(word.lemma)
 
-    # remove extra period added for work-around, if present
-    if padding_counter > 0:
-        abstract_words = abstract_words[:-padding_counter]
-
-    abstract = " ".join(abstract_words).replace(" .", ".")
+    abstract:str = " ".join(abstract_words).replace(" .", ".")
 
     lemma_abstracts.append(abstract)
 
 df = pd.DataFrame({
-    "id": ids, 
-    "doi": dois, 
-    "title": lemma_titles, 
+    "id": ids,
+    "doi": dois,
+    "title": lemma_titles,
     "abstract": lemma_abstracts
 })
 
-#  df.to_feather(snakemake.output[0])
-df.to_feather(snakemake.output[0])
+df.to_feather(snek.output[0])
